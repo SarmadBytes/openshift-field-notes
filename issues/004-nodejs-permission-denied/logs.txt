@@ -1,0 +1,141 @@
+=== Pod Error Log ===
+
+$ oc logs merchant-portal-pod-xxxxx
+
+Error: EACCES: permission denied, open './web-content/env.js'
+at Object.writeFileSync (node:fs:2368:20)
+at Object.<anonymous> (/opt/app-root/src/server.js:59:8)
+at Module._compile (node:internal/modules/cjs/loader:1529:14)
+at Module._extensions..js (node:internal/modules/cjs/loader:1613:10)
+at Module.load (node:internal/modules/cjs/loader:1275:32)
+at Module._load (node:internal/modules/cjs/loader:1096:12)
+at I.loadModule (/opt/dynatrace/oneagent-paas/agent/bin/1.319.68.20250813-080958/any/nodejs/nodejsagent.js:20636:22)
+at g.load (/opt/dynatrace/oneagent-paas/agent/bin/1.319.68.20250813-080958/any/nodejs/nodejsagent.js:20923:104)
+at get moduleExports [as moduleExports] (/opt/dynatrace/oneagent-paas/agent/bin/1.319.68.20250813-080958/any/nodejs/nodejsagent.js:20911:12)
+at Function._load (/opt/dynatrace/oneagent-paas/agent/bin/1.319.68.20250813-080958/any/nodejs/nodejsagent.js:20763:17) {
+errno: -13,
+code: 'EACCES',
+syscall: 'open',
+path: './web-content/env.js'
+}
+
+=== Dockerfile ===
+
+FROM registry.access.redhat.com/ubi9/nodejs-20:1
+
+USER root
+
+# Set working directory
+WORKDIR /opt/app-root/src
+
+# Create a user and group with the required UID and GID
+RUN groupadd -g 1000790000 nodejs && \
+    useradd -u 1000790000 -g nodejs -m -s /bin/bash nodejs
+
+# Copy package.json and package-lock.json files with correct ownership
+COPY --chown=nodejs:nodejs package.json ./
+
+# Change ownership of the working directory to the new user
+RUN chown -R nodejs:nodejs /opt/app-root/src
+
+# Switch to the new user
+USER nodejs
+
+# Install app dependencies as non-root user
+RUN npm install --force
+
+# Copy the application source code
+COPY --chown=nodejs:nodejs . .
+
+EXPOSE 4200
+
+CMD ["npm", "start"]
+
+=== Pod Description (DMZ PreProd) ===
+
+$ oc describe pod merchant-portal-pod-xxxxx
+
+Name:         merchant-portal-pod-xxxxx
+Namespace:    nmp-web-preprod
+Service Account:  merchant-portal-icashpro
+Security Context:
+  FSGroup:            1000790000
+  SELinux Options:    <none>
+
+Containers:
+  merchant-portal:
+    Container ID:   cri-o://xxxxx
+    Image:          registry-url/merchant-portal:latest
+    State:          Waiting
+      Reason:       CrashLoopBackOff
+    Last State:     Terminated
+      Reason:       Error
+      Exit Code:    1
+    Security Context:
+      capabilities:
+        drop:
+          - ALL
+      privileged: false
+      runAsUser: 1001180000
+      runAsGroup: 1001
+      runAsNonRoot: true
+      readOnlyRootFilesystem: true
+      allowPrivilegeEscalation: false
+
+=== Service Account Details ===
+
+$ oc describe sa merchant-portal-icashpro
+
+Name:                merchant-portal-icashpro
+Namespace:           nmp-web-preprod
+Labels:              <none>
+Annotations:         <none>
+Image pull secrets:  merchant-portal-icashpro-dockercfg-xxxxx
+Mountable secrets:   merchant-portal-icashpro-dockercfg-xxxxx
+Tokens:              merchant-portal-icashpro-token-xxxxx
+Events:              <none>
+
+=== Environment Comparison ===
+
+DEV Environment: Working ✓
+DMZ PreProd Environment: Failing ✗
+
+=== Original Deployment YAML (Dev & PreProd) ===
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: merchant-portal
+spec:
+  template:
+    spec:
+      serviceAccountName: merchant-portal-icashpro
+      containers:
+      - name: merchant-portal
+        image: registry-url/merchant-portal:latest
+        ports:
+        - containerPort: 4200
+
+# NOTE: No securityContext defined in original YAML
+
+=== Auto-Injected Security Context (DMZ PreProd Only) ===
+
+The following securityContext is AUTOMATICALLY ADDED by OpenShift in DMZ PreProd:
+
+    securityContext:
+      capabilities:
+        drop:
+          - ALL
+      privileged: false
+      runAsUser: 1001180000
+      runAsGroup: 1001
+      runAsNonRoot: true
+      readOnlyRootFilesystem: true        # <--- THIS CAUSES THE ISSUE
+      allowPrivilegeEscalation: false
+
+Key Observations:
+- This security context is NOT in the original deployment YAML
+- It is NOT present in DEV environment
+- It is AUTOMATICALLY INJECTED in DMZ PreProd by Security Context Constraints (SCC)
+- readOnlyRootFilesystem: true makes the entire container filesystem read-only
+- runAsUser: 1001180000 overrides the Dockerfile USER directive (nodejs:1000790000)

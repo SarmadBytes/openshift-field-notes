@@ -1,0 +1,41 @@
+$ oc get pods
+NAME                          READY   STATUS             RESTARTS   AGE
+myapp-deployment-7b9f8-x2kp   0/1     CrashLoopBackOff   12         15m
+
+$ oc logs myapp-deployment-7b9f8-x2kp
+Starting application...
+Loading configuration...
+Connecting to database...
+Exception in thread "main" java.lang.OutOfMemoryError: Java heap space
+	at com.example.app.DataLoader.loadCache(DataLoader.java:45)
+	at com.example.app.Application.main(Application.java:23)
+
+$ oc describe pod myapp-deployment-7b9f8-x2kp
+Name:         myapp-deployment-7b9f8-x2kp
+Namespace:    production-app
+Status:       Running
+Containers:
+  myapp:
+    Container ID:   cri-o://a1b2c3d4e5f6
+    Image:          registry.example.com/myapp:v2.1
+    State:          Waiting
+      Reason:       CrashLoopBackOff
+    Last State:     Terminated
+      Reason:       Error
+      Exit Code:    1
+      Started:      Thu, 23 Jan 2025 10:15:30 +0000
+      Finished:     Thu, 23 Jan 2025 10:16:02 +0000
+    Ready:          False
+    Restart Count:  12
+    Limits:
+      memory:  256Mi
+    Requests:
+      memory:  128Mi
+Events:
+  Type     Reason     Age                   From               Message
+  ----     ------     ----                  ----               -------
+  Normal   Scheduled  15m                   default-scheduler  Successfully assigned pod
+  Normal   Pulled     14m (x5 over 15m)     kubelet            Container image already present
+  Normal   Created    14m (x5 over 15m)     kubelet            Created container
+  Normal   Started    14m (x5 over 15m)     kubelet            Started container
+  Warning  BackOff    1m (x65 over 14m)     kubelet            Back-off restarting failed container

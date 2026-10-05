@@ -1,0 +1,44 @@
+# Private files - Never commit these
+CLAUDE.md
+HowToDo.md
+my-environment/
+daily-logs/
+
+# Sensitive information
+*.private
+*.secret
+.env
+.env.local
+
+# Personal notes
+personal-notes/
+*-private.md
+*-personal.md
+
+# System files
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+
+# IDE files
+.vscode/
+.idea/
+*.iml
+
+# Temporary files
+*.tmp
+*.temp
+*.log
+tmp/
+temp/
+
+# Backup files
+*.bak
+*.backup
+backup/
+
+# Local test files
+test-local/
+*-test-local.*
